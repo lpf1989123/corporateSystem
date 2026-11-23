@@ -1,9 +1,17 @@
 /* ==========================================================================
-   鲁信环境 · 企业制度门户  ——  前端核心
+   鲁信环境 · 企业制度门户  ——  前端核心（AJAX 调用独立后端）
    ========================================================================== */
-const API = '';
+const API = String(window.API_BASE || 'http://127.0.0.1:8080').replace(/\/$/, '');
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/* 后端资源地址（上传附件 /uploads/...） */
+function mediaUrl(u) {
+  if (!u) return '';
+  const s = String(u);
+  if (/^(https?:|data:|blob:)/i.test(s)) return s;
+  return API + (s.startsWith('/') ? s : '/' + s);
+}
 
 /* ---------------- 工具 ---------------- */
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -38,10 +46,18 @@ function relTime(s) {
 }
 
 async function api(path, opt = {}) {
-  const headers = { 'Content-Type': 'application/json', ...(opt.headers || {}) };
+  const headers = { ...(opt.headers || {}) };
+  if (opt.body != null && !(opt.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
   const tk = sessionStorage.getItem('token');
   if (tk) headers['X-Token'] = tk;
-  const res = await fetch(API + path, { ...opt, headers });
+  let res;
+  try {
+    res = await fetch(API + path, { ...opt, headers });
+  } catch (e) {
+    return { code: -1, msg: '无法连接后端（' + API + '），请确认后端已启动' };
+  }
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('json')) return { code: res.ok ? 0 : res.status, msg: '响应异常' };
   return res.json();
@@ -77,7 +93,7 @@ function topbar(active) {
   <header class="top">
     <div class="top-in">
       <a class="logo" href="#/">
-        <img class="logo-img" src="/logo2.png" alt="鲁信环境">
+        <img class="logo-img" src="logo2.png" alt="鲁信环境">
       </a>
     </div>
   </header>`;
@@ -358,7 +374,7 @@ function mdRender(md) {
     // 图片 ![alt](url)
     let im = s.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
     if (im) {
-      html += `<figure class="md-fig"><img src="${esc(im[2])}" alt="${esc(im[1] || '')}" loading="lazy"></figure>`;
+      html += `<figure class="md-fig"><img src="${esc(mediaUrl(im[2]))}" alt="${esc(im[1] || '')}" loading="lazy"></figure>`;
       i++; continue;
     }
     if (s.startsWith('|') && /^\|[\s:\-|]+\|$/.test((lines[i + 1] || '').trim())) {

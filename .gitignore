@@ -11,4 +11,9 @@ yarn-error.log*
 *.ntvs*
 *.njsproj
 *.sln
-__pycache__
+__pycache__/
+*.pyc
+
+# 本地运行时可忽略，仓库内已带初始库；按需取消注释
+# backend/data/portal.db
+# backend/uploads/

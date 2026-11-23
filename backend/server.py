@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
 """
-鲁信环境 · 企业制度门户 —— 后端服务
-纯标准库实现（SQLite + http.server），零第三方依赖，双击即可运行。
+鲁信环境 · 企业制度门户 —— 后端 API 服务（独立部署）
+纯标准库实现（SQLite + http.server），零第三方依赖。
 
-启动：  python server.py
-访问：  http://127.0.0.1:8080
-后台：  http://127.0.0.1:8080/admin   默认账号 admin / admin888
+启动：  python3 server.py
+接口：  http://127.0.0.1:8080/api/...
+上传：  http://127.0.0.1:8080/uploads/...
+默认管理员：admin / admin888
+
+环境变量：
+  HOST         监听地址，默认 0.0.0.0（便于前后端分端口 / 分机部署）
+  PORT         监听端口，默认 8080
+  CORS_ORIGIN  允许的前端来源，默认 *；可写多个，逗号分隔
 """
 import json
 import os
@@ -20,8 +26,14 @@ import urllib.parse
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+# 非 TTY 下立即刷出启动日志
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
 # 兼容 PyInstaller 打包：exe 模式下，数据库/上传目录放在 exe 旁边（持久保存），
-# 静态资源与种子数据打包在程序内部（只读）。
+# 种子数据打包在程序内部（只读）。
 if getattr(sys, 'frozen', False):
     RUN_BASE = os.path.dirname(os.path.abspath(sys.executable))
     BUNDLE = getattr(sys, '_MEIPASS', RUN_BASE)
@@ -30,13 +42,13 @@ else:
 
 DB_PATH = os.path.join(RUN_BASE, 'data', 'portal.db')
 UPLOADS = os.path.join(RUN_BASE, 'uploads')
-STATIC = os.path.join(BUNDLE, 'static')
 DATA = os.path.join(BUNDLE, 'data')
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 os.makedirs(UPLOADS, exist_ok=True)
 
-HOST = os.environ.get('HOST', '127.0.0.1')
+HOST = os.environ.get('HOST', '0.0.0.0')
 PORT = int(os.environ.get('PORT', '8080'))
+CORS_ORIGIN = os.environ.get('CORS_ORIGIN', '*')
 
 SESSIONS = {}          # token -> {user, expire}
 SESSION_TTL = timedelta(hours=12)
@@ -625,10 +637,33 @@ def extract_file_text(filename, data):
 # 路由
 # --------------------------------------------------------------------------
 class Handler(BaseHTTPRequestHandler):
-    server_version = 'LuxinPortal/1.0'
+    server_version = 'LuxinPortalAPI/1.0'
 
     def log_message(self, fmt, *args):
         pass
+
+    # ---------- CORS ----------
+    def _cors_headers(self):
+        origin = (self.headers.get('Origin') or '').strip()
+        allowed = [o.strip() for o in CORS_ORIGIN.split(',') if o.strip()]
+        if '*' in allowed:
+            # 带自定义头的跨域请求需要回显具体 Origin
+            self.send_header('Access-Control-Allow-Origin', origin or '*')
+        elif origin and origin in allowed:
+            self.send_header('Access-Control-Allow-Origin', origin)
+        elif allowed:
+            self.send_header('Access-Control-Allow-Origin', allowed[0])
+        if origin:
+            self.send_header('Vary', 'Origin')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Token')
+        self.send_header('Access-Control-Max-Age', '86400')
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self._cors_headers()
+        self.send_header('Content-Length', '0')
+        self.end_headers()
 
     # ---------- 基础 ----------
     def _send(self, obj, status=200, ctype='application/json; charset=utf-8'):
@@ -637,6 +672,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', ctype)
         self.send_header('Content-Length', str(len(raw)))
         self.send_header('Cache-Control', 'no-store')
+        self._cors_headers()
         self.end_headers()
         self.wfile.write(raw)
 
@@ -671,25 +707,7 @@ class Handler(BaseHTTPRequestHandler):
             return None
         return u
 
-    # ---------- 静态文件 ----------
-    def _serve_static(self, rel):
-        if rel in ('', '/'):
-            rel = 'index.html'
-        path = os.path.normpath(os.path.join(STATIC, rel))
-        if not path.startswith(STATIC) or not os.path.isfile(path):
-            self._send({'code': 404, 'msg': 'not found'}, 404)
-            return
-        ctype = mimetypes.guess_type(path)[0] or 'application/octet-stream'
-        if ctype.startswith('text/') or ctype in ('application/javascript', 'application/json'):
-            ctype += '; charset=utf-8'
-        with open(path, 'rb') as f:
-            raw = f.read()
-        self.send_response(200)
-        self.send_header('Content-Type', ctype)
-        self.send_header('Content-Length', str(len(raw)))
-        self.end_headers()
-        self.wfile.write(raw)
-
+    # ---------- 上传文件（附件） ----------
     def _serve_upload(self, rel):
         path = os.path.normpath(os.path.join(UPLOADS, rel))
         if not path.startswith(UPLOADS) or not os.path.isfile(path):
@@ -701,6 +719,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Type', ctype)
         self.send_header('Content-Length', str(len(raw)))
+        self._cors_headers()
         self.end_headers()
         self.wfile.write(raw)
 
@@ -708,13 +727,20 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path, q = self._query()
 
+        if path in ('', '/', '/api', '/api/health'):
+            return self._send(ok({
+                'name': '鲁信环境 · 企业制度门户 API',
+                'version': '1.0',
+                'status': 'ok',
+            }))
+
         if path.startswith('/uploads/'):
             return self._serve_upload(path[len('/uploads/'):])
 
         if path.startswith('/api/'):
             return self._api_get(path, q)
 
-        return self._serve_static(path.lstrip('/'))
+        return self._send(err('接口不存在（前端请单独部署）', 404), 404)
 
     def _api_get(self, path, q):
         conn = db()
@@ -1171,21 +1197,18 @@ def main():
     shown_host = '127.0.0.1' if HOST in ('0.0.0.0', '', '*') else HOST
     url = f'http://{shown_host}:{port}'
     print('=' * 60)
-    print('  鲁信环境 · 企业制度门户  已启动')
-    print(f'  本机访问   : {url}')
+    print('  鲁信环境 · 企业制度门户  后端 API 已启动')
+    print(f'  本机接口   : {url}/api/')
+    print(f'  健康检查   : {url}/api/health')
+    print(f'  上传资源   : {url}/uploads/')
     if HOST == '0.0.0.0':
         for ip in lan_ips():
-            print(f'  局域网访问 : http://{ip}:{port}   （发给同事，浏览器直接打开）')
-    print(f'  管理后台   : {url}/admin')
+            print(f'  局域网接口 : http://{ip}:{port}/api/')
+    print(f'  CORS 来源  : {CORS_ORIGIN}')
     print(f'  默认账号   : admin / admin888')
     print('  停止服务   : 关闭本窗口，或按 Ctrl+C')
+    print('  提示       : 请另启 frontend 静态服务，通过 AJAX 调用本接口')
     print('=' * 60)
-
-    # 双击 exe 启动时自动打开浏览器
-    if getattr(sys, 'frozen', False) or os.environ.get('AUTO_OPEN') == '1':
-        import threading
-        import webbrowser
-        threading.Timer(0.8, lambda: webbrowser.open(url)).start()
 
     try:
         srv.serve_forever()
