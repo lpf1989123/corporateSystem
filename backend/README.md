@@ -1,6 +1,6 @@
-# 后端 · 企业制度门户 API
+# 后端 · API 服务
 
-独立部署的 Python 后端，提供 REST 接口与上传文件访问。纯标准库，零第三方依赖。
+启动后独立提供 REST 接口与上传文件访问。纯 Python 标准库，零第三方依赖。
 
 ## 启动
 
@@ -9,7 +9,7 @@ cd backend
 python3 server.py
 ```
 
-Windows 也可双击 `启动后端.bat`。
+Windows 可双击 `启动后端.bat`。
 
 | 项 | 默认 |
 | --- | --- |
@@ -26,12 +26,8 @@ Windows 也可双击 `启动后端.bat`。
 | `PORT` | 端口 | `8080` |
 | `CORS_ORIGIN` | 允许的前端 Origin，多个用逗号分隔 | `*` |
 
-示例：
-
 ```bash
-set PORT=8090
-set CORS_ORIGIN=http://127.0.0.1:3000,http://192.168.1.10:3000
-python3 server.py
+PORT=8090 CORS_ORIGIN=http://127.0.0.1:3000 python3 server.py
 ```
 
 ## 主要接口
@@ -49,19 +45,19 @@ python3 server.py
 | GET | `/api/me` | 当前用户（需 `X-Token`） |
 | POST | `/api/upload` | 附件上传（multipart） |
 
-鉴权：请求头 `X-Token: <登录返回的 token>`。
+鉴权请求头：`X-Token: <登录返回的 token>`。
 
 ## 目录
 
 ```
 backend/
-├── server.py           API 服务
+├── server.py              API 服务入口
 ├── 启动后端.bat
-├── data/portal.db      SQLite（自动创建）
+├── data/portal.db         SQLite（自动创建）
 ├── data/handbook_doc.json
-├── uploads/            上传附件
-├── import_handbook.py  手册导入脚本
-└── import_pdf_policy.py
+├── uploads/               上传附件
+├── import_handbook.py     可选：手册导入
+└── import_pdf_policy.py   可选：PDF 导入
 ```
 
 ## 备份

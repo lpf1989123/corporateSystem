@@ -1,22 +1,19 @@
 # 前端 · 企业制度门户
 
-纯静态页面，通过 AJAX（`fetch`）请求后端 API 获取数据。
+本目录**仅含前端代码**（HTML / CSS / JS / 图片）。数据一律通过 AJAX 请求后端 API。
 
-## 启动
+## 目录
 
-先启动后端（默认 `http://127.0.0.1:8080`），再：
-
-```bash
-cd frontend
-python3 serve.py
 ```
-
-Windows 也可双击 `启动前端.bat`。
-
-| 入口 | 地址 |
-| --- | --- |
-| 前台门户 | http://127.0.0.1:3000 |
-| 管理后台 | http://127.0.0.1:3000/#/admin |
+frontend/
+├── index.html      入口页
+├── config.js       后端 API 地址（API_BASE）
+├── app.js          前台：路由 / 首页 / 阅读 / 检索
+├── admin.js        管理后台页面逻辑
+├── style.css       前台样式
+├── admin.css       后台样式
+└── logo*.png / ka.png
+```
 
 ## 配置后端地址
 
@@ -26,27 +23,22 @@ Windows 也可双击 `启动前端.bat`。
 window.API_BASE = 'http://127.0.0.1:8080';
 ```
 
-若后端部署在其他机器或端口，改成实际地址即可。上传附件、制度内图片也会自动拼到该基址下的 `/uploads/`。
+先启动 `backend` 服务，再将本目录部署到任意静态站点即可。
 
-## 环境变量（静态服务）
+## 本地预览（任选其一）
 
-| 变量 | 说明 | 默认 |
-| --- | --- | --- |
-| `HOST` | 监听地址 | `127.0.0.1` |
-| `PORT` | 端口 | `3000` |
+本目录不含服务端代码。可用系统自带静态服务临时打开：
 
-## 目录
+```bash
+# 先启动后端
+cd ../backend && python3 server.py
 
-```
-frontend/
-├── index.html      入口
-├── config.js       后端 API_BASE
-├── app.js          前台：路由 / 首页 / 阅读 / 检索
-├── admin.js        后台
-├── style.css / admin.css
-├── logo*.png / ka.png
-├── serve.py        本地静态服务
-└── 启动前端.bat
+# 另开终端，在 frontend 目录用任意静态服务器托管
+cd ../frontend
+python3 -m http.server 3000
 ```
 
-生产环境可将本目录部署到 Nginx / IIS 等任意静态站点，无需 Node 构建。
+- 门户：http://127.0.0.1:3000  
+- 后台：http://127.0.0.1:3000/#/admin  
+
+生产环境用 Nginx / IIS 等托管本目录静态文件即可，无需 Node 构建。
