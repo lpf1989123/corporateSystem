@@ -11,7 +11,7 @@ function renderLogin(main) {
       <div style="position:absolute;width:560px;height:560px;border-radius:50%;right:-160px;bottom:-200px;border:1px solid rgba(255,255,255,.08);box-shadow:0 0 0 80px rgba(255,255,255,.025),0 0 0 170px rgba(255,255,255,.016)"></div>
       <div style="position:relative;z-index:2;max-width:420px">
         <div style="margin-bottom:44px">
-          <img class="logo-img logo-img--login" src="/logo1.png" alt="鲁信环境">
+          <img class="logo-img logo-img--login" src="logo1.png" alt="鲁信环境">
         </div>
         <h2 style="font-size:33px;line-height:1.35;font-weight:700;letter-spacing:.8px;margin-bottom:16px">制度管理后台</h2>
         <p style="font-size:14.5px;line-height:1.95;color:rgba(255,255,255,.72)">
@@ -78,7 +78,7 @@ async function renderAdmin(main) {
   <div class="adm">
     <aside class="adm-side">
       <div class="adm-logo">
-        <img class="logo-img logo-img--adm" src="/logo1.png" alt="鲁信环境">
+        <img class="logo-img logo-img--adm" src="logo1.png" alt="鲁信环境">
       </div>
       <nav class="adm-nav">
         ${[['dash', '数据概览', ICON.file], ['policies', '规章制度', ICON.folder],
@@ -397,7 +397,7 @@ async function polEdit(id) {
     try {
       const fd = new FormData(); fd.append('file', file);
       const tk = sessionStorage.getItem('token');
-      const res = await fetch('/api/upload', { method: 'POST', headers: { 'X-Token': tk }, body: fd });
+      const res = await fetch(API + '/api/upload', { method: 'POST', headers: { 'X-Token': tk }, body: fd });
       const j = await res.json();
       if (j.code !== 0) {
         $('#up-result', mask).innerHTML = '';
@@ -405,7 +405,7 @@ async function polEdit(id) {
       }
       const d = j.data || {};
       let statusHtml = `<div class="up-ok">${ICON.check}<span>已存档：<b>${esc(d.name)}</b>（${(d.size / 1024).toFixed(1)} KB）</span>
-        <a href="${d.url}" target="_blank" class="tbtn">下载</a></div>`;
+        <a href="${mediaUrl(d.url)}" target="_blank" class="tbtn">下载</a></div>`;
       if (d.extract_ok && d.text) {
         const ta = $('#f-content', mask);
         const existing = (ta.value || '').trim();
